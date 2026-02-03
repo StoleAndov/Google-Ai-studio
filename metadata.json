@@ -1,0 +1,5 @@
+{
+  "name": "PredictX - Advanced Forecasting Dashboard",
+  "description": "A high-performance analytics platform that runs a forecasting contest between NeuralProphet, Prophet, SARIMAX, and Holt-Winters models to provide 30-day time-series predictions.",
+  "requestFramePermissions": []
+}
