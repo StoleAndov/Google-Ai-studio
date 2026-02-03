@@ -3,16 +3,15 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { DataPoint, ForecastResponse } from "../types";
 
 export class ForecastingService {
-  private ai: GoogleGenAI;
-
-  constructor() {
-    this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-  }
+  constructor() {}
 
   async runForecastingContest(data: DataPoint[]): Promise<ForecastResponse> {
+    // Create instance inside the method as per "API Key Selection" guidelines for freshest key access
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
     const dataString = JSON.stringify(data.slice(-180)); // Use last 6 months for context
 
-    const response = await this.ai.models.generateContent({
+    const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
       contents: `
         Analyze the following time-series data and run a forecasting contest for the next 30 days.
@@ -26,7 +25,7 @@ export class ForecastingService {
 
         Detailed Requirements for Insights:
         - Explain WHY the winner was chosen (e.g., better handling of non-linear trends, robustness to noise).
-        - Describe the observed data characteristics (seasonality, stationarity, volatility).
+        - Describe the observed data characteristics (seasonality, trend, and noise).
         - List potential risks or caveats to this specific forecast.
       `,
       config: {
@@ -68,9 +67,9 @@ export class ForecastingService {
             detailedInsights: {
               type: Type.OBJECT,
               properties: {
-                rationale: { type: Type.STRING, description: "Why the winning model outperformed the others for this specific data pattern." },
-                dataCharacteristics: { type: Type.STRING, description: "A summary of seasonality, trend, and noise observed in the input." },
-                risks: { type: Type.STRING, description: "Uncertainties or external factors that could skew this 30-day projection." }
+                rationale: { type: Type.STRING },
+                dataCharacteristics: { type: Type.STRING },
+                risks: { type: Type.STRING }
               },
               required: ["rationale", "dataCharacteristics", "risks"]
             }
