@@ -25,6 +25,11 @@ export interface DetailedInsights {
   risks: string;
 }
 
+export interface GroundingSource {
+  title: string;
+  uri: string;
+}
+
 export interface ForecastResponse {
   forecasts: ForecastPoint[];
   metrics: ModelMetric[];
@@ -38,4 +43,5 @@ export interface AppState {
   forecastResult: ForecastResponse | null;
   loading: boolean;
   error: string | null;
+  sources: GroundingSource[];
 }

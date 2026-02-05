@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -29,6 +28,16 @@
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
     .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+    /* Mobile Landscape Optimizations */
+    @media (orientation: landscape) and (max-height: 500px) {
+      .landscape-hide { display: none !important; }
+      .landscape-compact { padding: 1rem !important; border-radius: 1rem !important; }
+      .landscape-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+      .landscape-chart-h { height: 75vh !important; }
+      header { height: 3.5rem !important; }
+      header .logo-text { font-size: 1.25rem !important; }
+    }
   </style>
 <script type="importmap">
 {

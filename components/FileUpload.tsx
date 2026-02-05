@@ -1,7 +1,8 @@
 
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo, DragEvent } from 'react';
 import { read, utils } from 'xlsx';
 import { DataPoint } from '../types';
+import { forecastService } from '../services/geminiService';
 
 interface FileUploadProps {
   onDataLoaded: (data: DataPoint[]) => void;
@@ -27,6 +28,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded, isLoading }) => {
   const [stage, setStage] = useState<Stage>(Stage.UPLOAD);
   const [error, setError] = useState<string | null>(null);
   const [cleaningStatus, setCleaningStatus] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   
   const [rawHeaders, setRawHeaders] = useState<string[]>([]);
   const [rawRows, setRawRows] = useState<string[][]>([]);
@@ -135,13 +137,30 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded, isLoading }) => {
     onDataLoaded(finalData);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileProcess = async (file: File) => {
+    setError(null);
     if (!file) return;
+
+    if (file.type === 'application/pdf') {
+      setCleaningStatus("AI Multimodal Scan Active...");
+      try {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          const buffer = e.target?.result as ArrayBuffer;
+          const base64 = btoa(new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+          const { headers, rows } = await forecastService.extractDataFromPdf(base64);
+          processRawArray(headers, rows);
+        };
+        reader.readAsArrayBuffer(file);
+      } catch (err: any) {
+        setError(err.message || "PDF multimodal extraction failed.");
+        setCleaningStatus(null);
+      }
+      return;
+    }
 
     setCleaningStatus("Streaming content...");
     const reader = new FileReader();
-
     reader.onload = (event) => {
       try {
         const data = new Uint8Array(event.target?.result as ArrayBuffer);
@@ -149,9 +168,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded, isLoading }) => {
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
         
-        // Convert sheet to a 2D array of strings for our existing cleaning logic
         const rows = utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
-        
         if (rows.length < 2) throw new Error("Dataset is too small to analyze.");
 
         const headers = rows[0].map(h => String(h || '').trim());
@@ -169,13 +186,28 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded, isLoading }) => {
         setCleaningStatus(null);
       }
     };
-
-    reader.onerror = () => {
-      setError("Read error. The file might be corrupted.");
-      setCleaningStatus(null);
-    };
-
     reader.readAsArrayBuffer(file);
+  };
+
+  const handleDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileProcess(file);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFileProcess(file);
   };
 
   const previewData = useMemo(() => {
@@ -287,7 +319,12 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded, isLoading }) => {
   }
 
   return (
-    <div className="glass p-16 rounded-[3.5rem] relative overflow-hidden group">
+    <div 
+      className={`glass p-16 rounded-[3.5rem] relative overflow-hidden group transition-all duration-300 ${isDragging ? 'neon-border-indigo scale-[1.02] bg-indigo-500/5' : ''}`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500 opacity-5 rounded-full -mr-32 -mt-32 blur-3xl group-hover:scale-125 transition-transform duration-1000"></div>
       <div className="max-w-xl mx-auto text-center relative z-10">
         <div className="mb-12">
@@ -301,7 +338,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded, isLoading }) => {
         <div className="space-y-6">
           <input 
             type="file" 
-            accept=".csv, .xlsx, .xls" 
+            accept=".csv, .xlsx, .xls, .pdf" 
             onChange={handleFileChange} 
             ref={fileInputRef} 
             className="hidden" 
@@ -310,12 +347,12 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded, isLoading }) => {
             onClick={() => fileInputRef.current?.click()}
             className="w-full py-6 bg-white hover:bg-slate-100 text-slate-950 text-xl font-black rounded-3xl shadow-2xl transition-all active:scale-[0.97] uppercase tracking-tighter"
           >
-            Upload Source (CSV / XLSX)
+            Upload Source (CSV / XLSX / PDF)
           </button>
           
           <div className="flex items-center justify-center space-x-6 pt-4">
             <div className="h-px w-20 bg-white/5"></div>
-            <span className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em]">Simulation</span>
+            <span className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em]">Drag & Drop Supported</span>
             <div className="h-px w-20 bg-white/5"></div>
           </div>
 
@@ -327,7 +364,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded, isLoading }) => {
           </button>
 
           {error && (
-            <div className="mt-8 p-6 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-3xl text-sm font-bold text-left flex items-start space-x-4 shadow-inner">
+            <div className="mt-8 p-6 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-3xl text-sm font-bold text-left flex items-start space-x-4 shadow-inner animate-in fade-in slide-in-from-top-2">
               <svg className="w-6 h-6 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
               <span>{error}</span>
             </div>
